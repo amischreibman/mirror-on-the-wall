@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+logs/
+*.log
+
+# Openface
+OpenFace_2.2.0_win_x64/
+
+# Virtual environment
+venv/
+env/

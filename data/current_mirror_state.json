@@ -1,0 +1,22 @@
+{
+    "last_updated": "2025-06-04 08:59:42",
+    "people": [
+        {
+            "estimated_age_range": "30-40",
+            "estimated_biological_sex": "male",
+            "hair_color": "light brown",
+            "upper_garment_type": "t-shirt",
+            "upper_garment_color": "dark grey",
+            "general_expression": "neutral",
+            "skin_tone": "fair",
+            "visible_body_hair": "light stubble on chin",
+            "hair_length": "short",
+            "eye_color": "unknown",
+            "head_posture": "straight",
+            "gaze_direction": "forward",
+            "hairstyle": "balding",
+            "hair_type": "straight",
+            "eye_wear": "eyeglasses"
+        }
+    ]
+}
