@@ -52,7 +52,7 @@ def run_mirror_app():  # פונקציה ראשית להפעלת האפליקצי
                 elif chr(key & 0xFF).lower() == 'c':  # בדיקה אם המקש הוא 'c'
                     print("Manual clear requested")
                     data_saver.accumulated_person_data = {}
-                    data_saver.frames_without_person = data_saver.clear_threshold
+                    # data_saver.frames_without_person = data_saver.clear_threshold
 
     finally:  # קטע קוד שירוץ תמיד, גם אם יש שגיאה
         ai_analyzer.stop()  # איתות לתהליכון ה-AI לעצור

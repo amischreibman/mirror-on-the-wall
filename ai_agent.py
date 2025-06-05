@@ -19,43 +19,148 @@ class AIAgent:  # הגדרת מחלקה לסוכן הבינה המלאכותית
         self.model = genai.GenerativeModel('gemini-2.0-flash')  # אתחול מודל ה-Vision החדיש (Flash) של ג'מיני
 
         # הגדרת ההנחיה (פרומפט) לסוכן הבינה המלאכותית
-        # הפרומפט מעודכן להסיר תיאורי תנועה.
         self.prompt = """
-        Analyze the image and identify any people present. For each person, provide the following details. Omit key-value pairs if details are not visible. If no people are identified, return an empty JSON array.
+        in each session, in condition that at least one person is in the frame, analyze the image and identify any people present. For each session give a serial number counting the sessions, "002" for example, and for each image count how many people are visible inside the camera's frame, and for each person provide a serial 4 digits random numbers as "person_id" and also provide the following details.
+        If one person identify, provide the answer as a JSON array of objects and strings, where each object represents a session. Do not include any additional text outside the JSON array.
+        Example for a JSON array:
+{
+  "session_id": "008",
+  "session": [
+    {
+      "person_id": 1023,
+      "descriptions": [
+        "Appears to be between 20 and 30 years old",
+        "Male",
+        "Approximately 175 cm tall",
+        "Slim body structure",
+        "Fair skin tone",
+        "Has a small scar above the left eyebrow",
+        "Light stubble on chin",
+        "Dark brown, wavy hair of medium length, reaching the shoulders tied back in a braided ponytail"
+      ]
+    }
+  ]
+}
 
-        Provide the answer as a JSON array of objects, where each object represents a person. Do not include any additional text outside the JSON array.
-
-        For each person, describe any visible attribute with high detail. Focus solely on static visual elements and objects directly linked to the person, not temporary body movements or gestures. Pay close attention to accessories and unique features.
-
-        Possible details and examples:
-        - estimated_age_range: "20-30"
-        - estimated_biological_sex: "male"
-        - estimated_height: "175 cm"
-        - general_body_structure: "slim"
-        - skin_tone: "fair"
-        - unique_scars_or_marks: "small scar above left eyebrow"
-        - visible_body_hair: "light stubble on chin"
-        - hair_color: "dark brown"
-        - hair_length: "medium length, reaching shoulders"
-        - hair_type: "wavy"
-        - hairstyle: "braided ponytail"
-        - eye_color: "hazel"
-        - eye_wear: "black framed eyeglasses"
-        - head_posture: "straight"
-        - gaze_direction: "forward"
-        - general_expression: "neutral"
-        - upper_garment_type: "t-shirt"
-        - upper_garment_color: "blue"
-        - lower_garment_type: "jeans"
-        - lower_garment_color: "black"
-        - head_covering: "baseball cap"
-        - footwear_type: "sneakers"
-        - footwear_color: "white"
-        - wearing_socks: "yes"
-        - jewelry: "silver ring, gold necklace"
-        - watch: "smartwatch on left wrist"
-        - accompanying_technology: "smartphone"
-        - held_objects: "coffee mug"
+            For each person, describe any visible element you able to see in frame, with high details and add them to the description array. Focus solely on static visual elements and objects directly linked to the person, or part of his body or face. ignore temporary body movements or gestures, ignore facial gestures, ignore interpretations or conclusions. Pay close attention to accessories and unique features.
+            Possible details and examples:
+                    -Appears to be between 20 and 30 years old
+                    -Male
+                    -Approximately 175 cm tall
+                    -Slim body structure
+                    -bright skin tone
+                    -Has a small scar above the left eyebrow
+                    -Light stubble on chin
+                    -Dark brown, wavy hair of medium length, reaching the shoulders
+                    -Hair is tied back in a braided ponytail
+                    -Wearing black framed eyeglasses
+                    -Hazel eyes
+                    -Head is held straight
+                    -Looking forward
+                    -Facial expression is neutral
+                    -Wearing a blue t-shirt
+                    -Wearing black jeans
+                    -Wearing a baseball cap
+                    -Wearing white sneakers
+                    -Wearing white socks
+                    -Wearing a silver ring
+                    -Wearing a gold necklace
+                    -Wearing a smartwatch on the left wrist
+                    -Holding a smartphone
+                    -Holding a coffee mug in the right hand
+                when you looking for something but it is not visible, you ignore it until you see it, if and when you will see it inside the frame for sure
+                do not mention the categories, just make a list of descriptions. if see something that you already provided for the person with the same user_id serial number, then do not repeat it again. just add only new things you see with this person.
+                if more then one person stand in front of camera in the frame, make 2 different persons separately inside the session array.
+                 Example for 3 people in the frame:
+                 {
+  "session_id": "008",
+  "session": [
+    {
+      "person_id": 1023,
+      "descriptions": [
+        "Appears to be between 20 and 30 years old",
+        "Male",
+        "Approximately 175 cm tall",
+        "Slim body structure",
+        "Fair skin tone",
+        "Has a small scar above the left eyebrow",
+        "Light stubble on chin",
+        "Dark brown, wavy hair of medium length, reaching the shoulders tied back in a braided ponytail"
+      ]
+    },
+    {
+      "person_id": 2045,
+      "descriptions": [
+        "Appears to be between 40 and 50 years old",
+        "Female",
+        "Approximately 162 cm tall",
+        "Curvy body structure",
+        "Medium olive skin tone",
+        "No visible scars or marks",
+        "Shoulder-length straight auburn hair",
+        "Wearing red lipstick and pearl earrings",
+        "Wearing a white blouse and gray trousers",
+        "Holding a tablet in her left hand"
+      ]
+    },
+    {
+      "person_id": 3198,
+      "descriptions": [
+        "Appears to be in late teens",
+        "Non-binary",
+        "Approximately 180 cm tall",
+        "Athletic body structure",
+        "Light brown skin tone",
+        "Freckles across the nose",
+        "Short buzzcut dyed light blue",
+        "Wearing a black hoodie with a neon green logo",
+        "Wearing ripped blue jeans",
+        "Carrying a skateboard and wearing wireless headphones"
+      ]
+    }
+  ]
+}
+                 only if no person is in the frame, then just start a new session array with that person alone, using the same person id, and same list of visual descriptions already made. 
+                If no people are identified in the frame, then return None.
+                all descriptions that you send in your answers, need to be in Hebrew language only!,
+                for example, the session:
+                    {
+                      "session_id": "008",
+                      "session": [
+                        {
+                          "person_id": 1023,
+                          "descriptions": [
+                            "Appears to be between 20 and 30 years old",
+                            "Male",
+                            "Approximately 175 cm tall",
+                            "Slim body structure",
+                            "Fair skin tone",
+                            "Has a small scar above the left eyebrow",
+                            "Light stubble on chin",
+                            "Dark brown, wavy hair of medium length, reaching the shoulders tied back in a braided ponytail"
+                          ]
+                        }
+                      ]
+                    }
+                    will be send as a Hebrew description like this:
+                    {
+  "session_id": "008",
+  "session": [
+    {
+      "person_id": 1023,
+      "descriptions": [
+        "בערך בגיל שבין 20 ל-30",
+        "זכר",
+        "הגובה המשוער הוא 175 ס״מ",
+        "מבנה הגוף נראה רזה",
+        "גוון העור בצבע בהיר",
+        "נצפתה צלקת קטנה מעל הגבה השמאלית",
+        "זקן קטן על הסנטר",
+        "שיער חום כהה, גלי, באורך בינוני עד הכתפיים, אסוף בצמה לאחור"
+      ]
+    }
+  ]
+}                
         """
 
         self.frame_count = 0  # מונה פריימים לדיבאג

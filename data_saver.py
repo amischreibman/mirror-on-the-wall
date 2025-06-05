@@ -9,9 +9,7 @@ class DataSaver:  # הגדרת מחלקה לשמירת נתונים
         self.file_path = os.path.join(self.output_dir, filename)  # נתיב מלא לקובץ JSON
         self._ensure_output_directory_exists()  # וודא שתיקיית הפלט קיימת
         self._initialize_json_file()  # אתחול/טעינת קובץ JSON
-        self.accumulated_data = {}  # מילון לצבירת כל הנתונים
-        self.frames_without_person = 0  # ספירת פריימים ללא אדם
-        self.clear_threshold = 5  # כמה פריימים ללא אדם לפני מחיקה
+        self.accumulated_data = {}  # מילון לצבירת נתונים לפי person_id
 
     def _ensure_output_directory_exists(self):  # פונקציה פרטית לוודא קיום תיקייה
         if not os.path.exists(self.output_dir):  # בדיקה אם התיקייה לא קיימת
@@ -54,58 +52,47 @@ class DataSaver:  # הגדרת מחלקה לשמירת נתונים
             return  # יציאה
 
         try:
-            newly_detected_people = json.loads(ai_response_json_string)  # טעינת הנתונים החדשים מה-AI
+            session_data = json.loads(ai_response_json_string)  # טעינת הנתונים החדשים מה-AI
         except json.JSONDecodeError as e:  # טיפול בשגיאת JSON
             print(f"Error decoding AI response JSON: {e}")  # הדפסת שגיאה
             return  # יציאה
 
         current_state = self._load_current_state()  # טעינת המצב הקיים מהקובץ
 
-        # אם זוהו אנשים
-        if len(newly_detected_people) > 0:
+        # אם יש session עם נתונים
+        if session_data and "session" in session_data and len(session_data["session"]) > 0:
             self.frames_without_person = 0  # איפוס ספירת פריימים ללא אדם
 
-            # צבור את כל הנתונים מכל האנשים שזוהו
-            for person_data in newly_detected_people:
-                for key, value in person_data.items():
-                    # סנן ערכים שאינם רצויים
-                    value_str = str(value).strip().lower()
-                    if not value_str or value_str in ['no', 'none', 'not visible', 'n/a']:
-                        continue  # דלג על ערכים ריקים או שליליים
+            # עבור כל אדם בsession
+            for person_data in session_data["session"]:
+                person_id = str(person_data.get("person_id", "unknown"))
+                descriptions = person_data.get("descriptions", [])
 
-                    if key not in self.accumulated_data:
-                        # שדה חדש - פשוט הוסף
-                        self.accumulated_data[key] = value
-                        print(f"Added new field: {key} = {value}")
-                    elif key in ["jewelry", "held_objects", "accessories"]:
-                        # שדות מצטברים - בדוק אם הפריט כבר קיים
-                        existing_items = set(item.strip().lower() for item in self.accumulated_data[key].split(","))
-                        new_items = set(item.strip().lower() for item in str(value).split(","))
+                # אם זה אדם חדש, צור entry חדש
+                if person_id not in self.accumulated_data:
+                    self.accumulated_data[person_id] = {
+                        "person_id": person_id,
+                        "descriptions": []
+                    }
+                    print(f"New person detected: {person_id}")
 
-                        # בדוק אם יש פריטים באמת חדשים (שלא קיימים כבר)
-                        really_new_items = new_items - existing_items
-                        if really_new_items:
-                            # הוסף רק את הפריטים החדשים
-                            all_items = [item.strip() for item in self.accumulated_data[key].split(",")]
-                            for new_item in str(value).split(","):
-                                if new_item.strip().lower() not in existing_items:
-                                    all_items.append(new_item.strip())
-                            self.accumulated_data[key] = ", ".join(all_items)
-                            print(f"Added new items to {key}: {', '.join(really_new_items)}")
-                    elif key in ["upper_garment_color", "lower_garment_color", "footwear_color", "hair_color",
-                                 "eye_color"]:
-                        # עבור צבעים ותיאורים - אפשר לעדכן אם יש תיאור מדויק יותר
-                        old_value = self.accumulated_data[key].lower()
-                        new_value = str(value).lower()
-                        # עדכן רק אם הערך החדש מכיל יותר מידע
-                        if len(new_value) > len(old_value) or (new_value != old_value and "with" in new_value):
-                            self.accumulated_data[key] = value
-                            print(f"Updated {key}: {old_value} -> {value}")
-                    # אחרת - שמור את הערך הקיים (לא מעדכן)
+                # הוסף descriptions חדשים (רק אם הם לא קיימים כבר)
+                existing_descriptions = set(self.accumulated_data[person_id]["descriptions"])
+                new_descriptions_added = 0
 
-            # שמור את הנתונים המצטברים
-            current_state["people"] = [self.accumulated_data] if self.accumulated_data else []
-            print(f"Total accumulated fields: {len(self.accumulated_data)}")
+                for description in descriptions:
+                    if description and description not in existing_descriptions:
+                        self.accumulated_data[person_id]["descriptions"].append(description)
+                        existing_descriptions.add(description)
+                        new_descriptions_added += 1
+
+                if new_descriptions_added > 0:
+                    print(f"Added {new_descriptions_added} new descriptions for person {person_id}")
+                    print(f"Total descriptions for person {person_id}: {len(self.accumulated_data[person_id]['descriptions'])}")
+
+            # עדכן את current_state עם הנתונים המצטברים
+            current_state["people"] = list(self.accumulated_data.values())
+            print(f"Total people tracked: {len(self.accumulated_data)}")
 
         else:
             # אם לא זוהו אנשים
@@ -120,7 +107,7 @@ class DataSaver:  # הגדרת מחלקה לשמירת נתונים
                 current_state["people"] = []
             else:
                 # שמור את הנתונים הקיימים
-                current_state["people"] = [self.accumulated_data] if self.accumulated_data else []
+                current_state["people"] = list(self.accumulated_data.values())
 
         # עדכון זמן ושמירה
         current_state["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

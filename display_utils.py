@@ -89,61 +89,22 @@ class DisplayManager:  # הגדרת מחלקה לניהול תצוגה
                             if len(json_data["people"]) == 0:
                                 data_lines.append("No people detected")
                             else:
-                                for person_index, person_data in enumerate(
-                                        json_data["people"]):  # לולאה על כל אדם שזוהה
-                                    if person_index > 0:  # אם יש יותר מאדם אחד, הוסף מפריד
-                                        data_lines.append("-" * 30)
+                                for person_data in json_data["people"]:  # לולאה על כל אדם שזוהה
+                                    person_id = person_data.get("person_id", "unknown")
+                                    descriptions = person_data.get("descriptions", [])
 
-                                    # הצג את מספר השדות
-                                    data_lines.append(f"Person {person_index + 1} - {len(person_data)} attributes:")
-                                    data_lines.append("")
+                                    # כותרת לכל אדם
+                                    data_lines.append(f"Person number {person_id}")
+                                    data_lines.append("-" * 20)
 
-                                    # מיון השדות לפי קטגוריות לתצוגה ברורה יותר
-                                    categories = {
-                                        "Basic Info": ["estimated_age_range", "estimated_biological_sex",
-                                                       "estimated_height", "general_body_structure"],
-                                        "Appearance": ["skin_tone", "unique_scars_or_marks", "visible_body_hair"],
-                                        "Hair": ["hair_color", "hair_length", "hair_type", "hairstyle"],
-                                        "Face": ["eye_color", "eye_wear", "head_posture", "gaze_direction",
-                                                 "general_expression"],
-                                        "Clothing": ["upper_garment_type", "upper_garment_color", "lower_garment_type",
-                                                     "lower_garment_color", "head_covering", "footwear_type",
-                                                     "footwear_color", "wearing_socks"],
-                                        "Accessories": ["jewelry", "watch", "accompanying_technology", "held_objects"],
-                                        "History": []  # לשדות היסטוריה
-                                    }
+                                    # הוספת כל ה-descriptions
+                                    if descriptions:
+                                        for description in descriptions:
+                                            data_lines.append(description)
+                                    else:
+                                        data_lines.append("No descriptions available")
 
-                                    # הוסף שדות היסטוריה לקטגוריה
-                                    for key in person_data:
-                                        if "_history" in key:
-                                            categories["History"].append(key)
-
-                                    # הצג לפי קטגוריות
-                                    for category, fields in categories.items():
-                                        category_has_data = False
-                                        for field in fields:
-                                            if field in person_data:
-                                                if not category_has_data:
-                                                    data_lines.append(f"[{category}]")
-                                                    category_has_data = True
-                                                field_display = field.replace('_', ' ').title()
-                                                data_lines.append(f"  {field_display}: {person_data[field]}")
-
-                                        if category_has_data:
-                                            data_lines.append("")  # רווח בין קטגוריות
-
-                                    # הצג שדות שלא בקטגוריות
-                                    other_fields = []
-                                    all_categorized_fields = sum(categories.values(), [])
-                                    for key in person_data:
-                                        if key not in all_categorized_fields:
-                                            other_fields.append(key)
-
-                                    if other_fields:
-                                        data_lines.append("[Other]")
-                                        for field in other_fields:
-                                            field_display = field.replace('_', ' ').title()
-                                            data_lines.append(f"  {field_display}: {person_data[field]}")
+                                    data_lines.append("")  # רווח בין אנשים
                         else:
                             data_lines.append("No people data available")
                 except (IOError, json.JSONDecodeError) as e:  # טיפול בשגיאות
@@ -154,10 +115,10 @@ class DisplayManager:  # הגדרת מחלקה לניהול תצוגה
             # הצגת הטקסט
             y_pos = 30  # מיקום התחלתי לציר ה-Y
             line_height = 25  # גובה שורה
-            font_scale = 0.6  # גודל פונט מוגדל
+            font_scale = 0.6  # גודל פונט
             font_thickness = 1  # עובי פונט
             font_color = (0, 255, 0)  # צבע ירוק בהיר (BGR)
-            category_color = (0, 255, 255)  # צבע צהוב לכותרות קטגוריות
+            header_color = (0, 255, 255)  # צבע צהוב לכותרות אנשים
             margin_right = 20  # מרחק מהקצה הימני
 
             for line in data_lines:  # לולאה על כל שורה בנתונים
@@ -168,75 +129,29 @@ class DisplayManager:  # הגדרת מחלקה לניהול תצוגה
                                 cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_color, font_thickness, cv2.LINE_AA)
                     break  # יציאה מהלולאה אם אין מקום
 
+                # בחירת צבע לפי סוג השורה
+                color = font_color
+                if line.startswith("Person number"):
+                    color = header_color
+
                 # בדוק אם השורה ארוכה מדי ופצל אותה אם צריך
                 max_width = overlay_width - margin_right - 10  # רוחב מקסימלי לטקסט
-
-                # חשב את גודל הטקסט
                 (text_width, text_height), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, font_scale,
                                                                font_thickness)
 
-                # אם הטקסט ארוך מדי, פצל אותו
-                if text_width > max_width and len(line) > 10:  # הוסף בדיקה שהשורה באמת ארוכה
-                    # נסה לפצל במקום הגיוני (אחרי נקודתיים או פסיק)
-                    if ': ' in line:
-                        parts = line.split(': ', 1)
-                        # צייר את החלק הראשון
-                        color = category_color if line.startswith("[") and line.endswith("]") else font_color
-                        cv2.putText(full_screen_frame, parts[0] + ':', (10, y_pos),
-                                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, font_thickness, cv2.LINE_AA)
-                        y_pos += line_height
-
-                        # צייר את החלק השני בשורה חדשה עם הזחה
-                        if y_pos <= overlay_height - line_height and len(parts) > 1 and parts[1]:
-                            # פצל את החלק השני אם הוא עדיין ארוך מדי
-                            remaining_text = parts[1]
-
-                            # פצל לפי פסיקים אם יש
-                            if ', ' in remaining_text:
-                                items = remaining_text.split(', ')
-                                wrapped_text = "    "
-                                for i, item in enumerate(items):
-                                    if i > 0:
-                                        test_text = wrapped_text + ", " + item
-                                        (test_width, _), _ = cv2.getTextSize(test_text, cv2.FONT_HERSHEY_SIMPLEX,
-                                                                             font_scale, font_thickness)
-                                        if test_width > max_width - 20:
-                                            # צייר את השורה הנוכחית
-                                            cv2.putText(full_screen_frame, wrapped_text, (10, y_pos),
-                                                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_color,
-                                                        font_thickness, cv2.LINE_AA)
-                                            y_pos += line_height
-                                            wrapped_text = "    " + item
-                                        else:
-                                            wrapped_text = test_text
-                                    else:
-                                        wrapped_text += item
-
-                                # צייר את השורה האחרונה
-                                if wrapped_text.strip() and y_pos <= overlay_height - line_height:
-                                    cv2.putText(full_screen_frame, wrapped_text, (10, y_pos),
-                                                cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_color, font_thickness,
-                                                cv2.LINE_AA)
-                                    y_pos += line_height
-                            else:
-                                # אם אין פסיקים, פשוט הצג את הטקסט
-                                cv2.putText(full_screen_frame, "    " + remaining_text, (10, y_pos),
-                                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_color, font_thickness,
-                                            cv2.LINE_AA)
-                                y_pos += line_height
-                    else:
-                        # אם אין נקודתיים, פשוט הצג עם ... אם ארוך מדי
-                        display_text = line[:50] + "..." if len(line) > 50 else line
-                        color = category_color if line.startswith("[") and line.endswith("]") else font_color
-                        cv2.putText(full_screen_frame, display_text, (10, y_pos),
-                                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, font_thickness, cv2.LINE_AA)
-                        y_pos += line_height
+                # אם הטקסט ארוך מדי, חתוך אותו
+                if text_width > max_width and len(line) > 10:
+                    # חשב כמה תווים נכנסים
+                    chars_per_width = len(line) / text_width
+                    max_chars = int(max_width * chars_per_width * 0.9)  # רצון בטחון
+                    display_text = line[:max_chars] + "..." if len(line) > max_chars else line
                 else:
-                    # הטקסט נכנס בשורה אחת
-                    color = category_color if line.startswith("[") and line.endswith("]") else font_color
-                    cv2.putText(full_screen_frame, line, (10, y_pos),
-                                cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, font_thickness, cv2.LINE_AA)
-                    y_pos += line_height
+                    display_text = line
+
+                cv2.putText(full_screen_frame, display_text, (10, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, font_thickness, cv2.LINE_AA)
+                y_pos += line_height
+
         # --- סוף הוספת שכבת נתוני JSON ---
 
         cv2.imshow(self.window_name, full_screen_frame)  # הצגת הפריים המלא בחלון
