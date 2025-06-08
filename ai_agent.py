@@ -42,7 +42,15 @@ class AIAgent:  # הגדרת מחלקה לסוכן הבינה המלאכותית
   ]
 }
 
-            For each person, describe any visible element you able to see in frame, with high details and add them to the description array. Focus solely on static visual elements and objects directly linked to the person, or part of his body or face. ignore temporary body movements or gestures, ignore facial gestures, ignore interpretations or conclusions. Pay close attention to accessories and unique features.
+            For each person, describe any visible element you able to see in frame, with high details and add them to the description array. Focus solely on static visual elements and objects directly linked to the person, or part of his body or face. STRICTLY IGNORE: temporary body movements, gestures, poses, facial expressions, hand positions, head positions, eye directions, any temporary actions or movements. ONLY describe permanent physical features and static visible objects.
+            CRITICAL RULES:
+1. NEVER describe background objects, furniture, walls, or environment. Only describe the PERSON.
+2. Maximum 5 descriptions per category. If you already have 5 items in a category, replace the oldest one.
+3. Focus ONLY on the person's body, face, clothing, and accessories that are ON the person.
+4. DO NOT describe chairs, walls, shelves, or any background elements.
+.IMPORTANT: Never use action verbs in descriptions. Instead of "לובש חולצה לבנה" write "חולצה לבנה". Instead of "עוטה" write only the item name. NO VERBS - only nouns and adjectives describing what you see. Pay close attention to accessories and unique features.
+            NEVER describe what you DON'T see. Only describe what you CAN see. Never write "ללא משקפיים" or "אין תכשיטים" - only write about items that are actually visible.
+Pay special attention to accessories like watches, jewelry, glasses when hands or body parts become visible.
             Possible details and examples:
                     -Appears to be between 20 and 30 years old
                     -Male
@@ -161,7 +169,14 @@ class AIAgent:  # הגדרת מחלקה לסוכן הבינה המלאכותית
     }
   ]
 }                
+IMPORTANT RULES:
+1. NEVER repeat descriptions you already gave for the same person_id
+2. If you see something NEW about a person (like a watch that wasn't visible before), add only that NEW item
+3. If you want to CORRECT a previous description (like age), REPLACE it, don't add both
+4. NEVER describe temporary gestures, movements, or poses (like "hand on chin", "looking up", "pointing")
+5. Only describe PERMANENT visual features and STATIC objects that are visible
         """
+
 
         self.frame_count = 0  # מונה פריימים לדיבאג
 

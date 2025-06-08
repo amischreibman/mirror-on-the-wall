@@ -4,6 +4,7 @@ import time  # ייבוא מודול לטיפול בזמן (לצורך השהי�
 from ai_agent import AIAgent  # ייבוא מחלקת AIAgent
 from data_saver import DataSaver  # ייבוא מחלקת DataSaver
 from face_detector import FaceDetector  # ייבוא מחלקת זיהוי פנים
+from person_tracker import PersonTracker  # ייבוא מחלקת מעקב אנשים
 
 
 class AIBackgroundAnalyzer(threading.Thread):  # הגדרת מחלקה כיורשת Thread
@@ -13,6 +14,7 @@ class AIBackgroundAnalyzer(threading.Thread):  # הגדרת מחלקה כיור�
         self.data_saver = data_saver  # אובייקט לשמירת נתונים
         self.ai_agent = AIAgent()  # אתחול סוכן AI
         self.face_detector = FaceDetector()  # אתחול זיהוי פנים מקומי
+        self.person_tracker = PersonTracker()  # אתחול מעקב אנשים
         self.interval_seconds = interval_seconds  # מרווח בין ניתוחים
         self.running = True  # דגל לשליטה על ריצת התהליכון
         self.daemon = True  # הגדרת התהליכון כ-daemon
@@ -20,7 +22,7 @@ class AIBackgroundAnalyzer(threading.Thread):  # הגדרת מחלקה כיור�
         self.frames_with_faces = 0  # מונה פריימים עם פנים
 
     def run(self):  # הפונקציה שתרוץ בתהליכון הנפרד
-        print("AI background analyzer with face detection started.")  # הודעת התחלה
+        print("AI background analyzer with multi-person tracking started.")  # הודעת התחלה
         while self.running:  # לולאת ריצה כל עוד התהליכון פעיל
             try:
                 # מנסה לקחת פריים מהתור בלי לחכות לנצח, עם timeout קצר
@@ -28,32 +30,37 @@ class AIBackgroundAnalyzer(threading.Thread):  # הגדרת מחלקה כיור�
                 if frame is not None:  # בדיקה אם התקבל פריים תקין
                     self.frames_processed += 1
 
-                    # בדיקה מקדימה מהירה לזיהוי פנים
-                    has_people = self.face_detector.has_people(frame)
+                    # זיהוי כל האנשים בפריים
+                    detected_persons = self.person_tracker.detect_persons(frame)
 
-                    if has_people:
+                    if not detected_persons:
+                        # אין אנשים בפריים
+                        print("No persons detected in frame")
+                        self.data_saver.handle_empty_frame()
+                    else:
                         self.frames_with_faces += 1
-                        face_count, faces = self.face_detector.detect_faces(frame)
-                        print(f"Face detection: {face_count} face(s) detected. Sending to AI...")
+                        print(f"{len(detected_persons)} person(s) in frame")
 
-                        # רק אם יש פנים - שולח ל-API
+                        # שלח ל-AI לניתוח
                         ai_response_json_string = self.ai_agent.analyze_frame(frame)
 
                         if ai_response_json_string:  # אם התקבלה תשובה
-                            print("AI analysis received. Saving data.")  # הודעה על קבלת נתונים
-                            self.data_saver.add_analysis_result(ai_response_json_string)  # שמירת הנתונים
+                            print("AI analysis received. Processing with multi-person tracking...")
+                            # העבר את רשימת האנשים שזוהו ל-data_saver
+                            self.data_saver.process_multi_person_analysis(
+                                ai_response_json_string,
+                                detected_persons
+                            )
                         else:
-                            print("AI analysis failed or returned no data.")  # הודעה על כשל בניתוח
-                    else:
-                        # אין פנים - מעדכן שאין אנשים
-                        print("No faces detected. Skipping AI analysis.")
-                        self.data_saver.add_analysis_result("[]")  # מעביר מערך ריק
+                            print("AI analysis failed or returned no data.")
 
                     # סטטיסטיקות דיבאג
-                    if self.frames_processed % 20 == 0:
+                    if self.frames_processed % 20 == 0 and self.frames_processed > 0:
                         face_ratio = (self.frames_with_faces / self.frames_processed) * 100
+                        active_persons = self.person_tracker.get_active_persons()
                         print(
-                            f"Face detection stats: {self.frames_with_faces}/{self.frames_processed} frames ({face_ratio:.1f}%)")
+                            f"\nStats: {self.frames_with_faces}/{self.frames_processed} frames with faces ({face_ratio:.1f}%)")
+                        print(f"Active persons: {active_persons}")
 
                 self.frame_queue.task_done()  # סימון שהמשימה בוצעה בתור
 
@@ -61,6 +68,8 @@ class AIBackgroundAnalyzer(threading.Thread):  # הגדרת מחלקה כיור�
                 pass  # לא עושה כלום, ממשיך הלאה
             except Exception as e:  # טיפול בשגיאות כלליות בתהליכון
                 print(f"Error in AI background analyzer: {e}")  # הדפסת שגיאה
+                import traceback
+                traceback.print_exc()
 
             time.sleep(self.interval_seconds)  # המתנה לפני ניתוח נוסף
 
