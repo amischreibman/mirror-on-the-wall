@@ -97,54 +97,40 @@ class DataSaver:
             print(f"❌ JSON decode error: {e}")
         except Exception as e:
             print(f"❌ Error processing data: {e}")
-            import traceback
-            traceback.print_exc()
+import traceback
+traceback.print_exc()
 
-    def _match_ai_to_tracked(self, ai_persons, detected_persons):
-        """מתאים בין אנשים שה-AI זיהה לאנשים שאנחנו עוקבים אחריהם"""
-        matched = []
+def _match_ai_to_tracked(self, ai_persons, detected_persons):
+    """מתאים בין אנשים שה-AI זיהה לאנשים שאנחנו עוקבים אחריהם"""
+    matched = []
 
-        # אם יש אותו מספר אנשים, נתאים לפי סדר
-        if len(ai_persons) == len(detected_persons):
-            for i, ai_person in enumerate(ai_persons):
+    # אם יש אותו מספר אנשים, נתאים לפי סדר
+    if len(ai_persons) == len(detected_persons):
+        for i, ai_person in enumerate(ai_persons):
+            tracked_id = detected_persons[i][0]
+            is_new = detected_persons[i][1]
+            descriptions = ai_person.get("descriptions", [])
+
+            matched.append({
+                "person_id": tracked_id,
+                "descriptions": descriptions,
+                "is_new": is_new
+            })
+        else:
+            # אם המספרים לא תואמים, ניקח את המינימום
+            print(f"Warning: AI detected {len(ai_persons)} but tracker detected {len(detected_persons)}")
+            for i in range(min(len(ai_persons), len(detected_persons))):
                 tracked_id = detected_persons[i][0]
                 is_new = detected_persons[i][1]
-                descriptions = ai_person.get("descriptions", [])
+                descriptions = ai_persons[i].get("descriptions", [])
 
                 matched.append({
                     "person_id": tracked_id,
                     "descriptions": descriptions,
                     "is_new": is_new
                 })
-            else:
-                # אם המספרים לא תואמים, ניקח את המינימום
-                print(f"Warning: AI detected {len(ai_persons)} but tracker detected {len(detected_persons)}")
-                for i in range(min(len(ai_persons), len(detected_persons))):
-                    tracked_id = detected_persons[i][0]
-                    is_new = detected_persons[i][1]
-                    descriptions = ai_persons[i].get("descriptions", [])
 
-                    matched.append({
-                        "person_id": tracked_id,
-                        "descriptions": descriptions,
-                        "is_new": is_new
-                    })
-
-            return matched
-
-    def _check_need_new_session(self, detected_persons):
-        """בודק אם צריך סשן חדש"""
-        # אם אין סשן נוכחי - צריך חדש
-        if self.current_session is None:
-            return True
-
-        # אם יש אדם חדש - צריך סשן חדש
-        for person_id, is_new in detected_persons:
-            if is_new:
-                return True
-
-        return False
-
+        return matched
 
     def _create_new_session(self, matched_persons):
         """יוצר סשן חדש עם מבנה מקוטגר"""
@@ -279,60 +265,57 @@ class DataSaver:
         next_id = max(existing_ids, default=0) + 1
         return f"{next_id:03d}"
 
-
-    def get_file_path(self):
-        """מחזיר את הנתיב לקובץ"""
-        return self.file_path
-
-
-    def handle_empty_frame(self):
-        """מטפל בפריים ללא אנשים - לא סוגר סשן מיד"""
-        self.frames_without_person += 1
-
-        # סגור סשן רק אחרי זמן ארוך יותר (10 פריימים)
-        if self.frames_without_person >= 10:
-            if self.current_session:
-                print("No persons detected for extended time - finalizing session")
-                self._finalize_current_session()
-
-        # בקובץ data_saver.py
-        # הוסף את הפונקציות הבאות בסוף הקובץ (אחרי שורה 415):
-
     def _extract_valid_json(self, text):
         """מחלץ JSON תקין מהטקסט"""
+        # הסרת רווחים מיותרים
         text = text.strip()
 
+        # הסרת עטיפת markdown אם קיימת
         if text.startswith("```json") and text.endswith("```"):
             text = text[7:-3].strip()
         elif text.startswith("```") and text.endswith("```"):
             text = text[3:-3].strip()
 
+        # חיפוש אובייקט JSON (מתחיל ב-{ ונגמר ב-})
         start = text.find('{')
         end = text.rfind('}')
 
         if start != -1 and end != -1 and end > start:
             return text[start:end + 1]
 
+        # חיפוש מערך JSON
+        start = text.find('[')
+        end = text.rfind(']')
+
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1]
+
         return None
 
-    def clear_data(self):
-        """מנקה את כל הנתונים"""
-        self._save_data({"sessions": []})
-        self.current_session = None
-        self.current_session_id = None
-        self.frames_without_person = 0
-        self.person_descriptions.clear()
-        self.person_categories.clear()
-        print("All visual data cleared")
+    def get_file_path(self):
+        """מחזיר את הנתיב לקובץ"""
+        return self.file_path
 
-    def start_new_scene(self):
-        """מתחיל סצנה חדשה - סוגר את הנוכחית ומתחיל חדשה"""
-        # סגור סשן נוכחי אם קיים
+
+def handle_empty_frame(self):
+    """מטפל בפריים ללא אנשים - לא סוגר סשן מיד"""
+    self.frames_without_person += 1
+
+    # סגור סשן רק אחרי זמן ארוך יותר (10 פריימים)
+    if self.frames_without_person >= 10:
         if self.current_session:
+            print("No persons detected for extended time - finalizing session")
             self._finalize_current_session()
 
-        # נקה מעקב אחרי אנשים
-        self.person_descriptions.clear()
-        self.person_categories.clear()
+def get_file_path(self):
+    """מחזיר את הנתיב לקובץ"""
+    return self.file_path
 
-        print("Starting new scene - visual data will refresh")
+def clear_data(self):
+    """מנקה את כל הנתונים"""
+    self._save_data({"sessions": []})
+    self.current_session = None
+    self.current_session_id = None
+    self.frames_without_person = 0
+    self.person_descriptions.clear()
+    print("All data cleared")
