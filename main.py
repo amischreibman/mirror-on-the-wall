@@ -14,6 +14,9 @@ def run_mirror_app():
     data_saver = DataSaver()
     behavioral_data_saver = BehavioralDataSaver()
     frame_queue = queue.Queue(maxsize=10)
+    display_manager.set_behavioral_data_saver(behavioral_data_saver)
+    import builtins
+    builtins.display_manager = display_manager
 
     # הגדרת חלון התצוגה
     display_manager.setup_window()
@@ -37,19 +40,26 @@ def run_mirror_app():
     print("Press 'I' to toggle info display.")
     print("Press 'F' to toggle fullscreen mode.")
 
-
-
+    frame_count = 0
 
     # לולאה ראשית להרצת האפליקציה
     while True:
         if cv2.getWindowProperty(display_manager.window_name, cv2.WND_PROP_VISIBLE) < 1:
             print("Window was closed. Exiting.")
             break
+
         # קריאת פריים מהמצלמה
         ret, frame = camera.read_frame()
         if not ret or frame is None:
             print("Failed to read frame from camera.")
             break
+
+        frame_count += 1
+
+        # הדפסת מצב כל 100 פריימים
+        if frame_count % 100 == 0:
+            print(
+                f"Frame {frame_count}: Mode={display_manager.display_mode}, Overlay={display_manager.show_json_overlay}")
 
         # .AI-ניסה להכניס פריים לתור עבור ה
         try:

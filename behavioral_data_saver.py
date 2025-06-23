@@ -24,6 +24,11 @@ class BehavioralDataSaver:
         # רשימת כל המשפטים הזמינים להצגה
         self.available_insights = []
 
+        # cache קבוע לטקסטים
+        self.persistent_insights_cache = []
+
+
+
     def _load_data(self):
         """טוען נתונים מהקובץ או מחזיר מבנה ריק"""
         try:
@@ -207,11 +212,36 @@ class BehavioralDataSaver:
 
         # הסר כפילויות
         self.available_insights = list(set(self.available_insights))
-        print(f"Available behavioral insights: {len(self.available_insights)}")
+
+        # עדכן גם את ה-cache הקבוע
+        quality_insights = [insight for insight in self.available_insights if len(insight.strip()) > 5]
+        if quality_insights:
+            self.persistent_insights_cache.extend(quality_insights)
+            self.persistent_insights_cache = list(set(self.persistent_insights_cache))  # הסר כפילויות
+
+        print(
+            f"Available behavioral insights: {len(self.available_insights)}, Persistent cache: {len(self.persistent_insights_cache)}")
 
     def get_available_insights(self):
         """מחזיר את רשימת המשפטים הזמינים להצגה"""
         return self.available_insights.copy()
+
+    def get_persistent_insights(self):
+        """מחזיר את כל הטקסטים שנאספו אי פעם - לא נמחק"""
+        if not self.persistent_insights_cache:
+            # טען מהקובץ אם ה-cache ריק
+            data = self._load_data()
+            all_insights = []
+            for session in data.get("sessions", []):
+                insights = session.get("behavioral_analysis", [])
+                all_insights.extend(insights)
+
+            # הסר כפילויות ושמור ב-cache
+            self.persistent_insights_cache = list(
+                set([insight for insight in all_insights if len(insight.strip()) > 5]))
+            print(f"Loaded {len(self.persistent_insights_cache)} persistent behavioral insights")
+
+        return self.persistent_insights_cache.copy()
 
     def get_file_path(self):
         """מחזיר את הנתיב לקובץ"""
