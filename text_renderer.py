@@ -26,12 +26,12 @@ class TextRenderer:
 
         # הגדרות גודל פונט
         self.MIN_FONT_SIZE = 14
-        self.MAX_FONT_SIZE = 25
+        self.MAX_FONT_SIZE = 30
         self.FONT_RANDOM_RANGE = 30
 
         # הגדרות זמן למאגר השני
-        self.BEHAVIORAL_MIN_LIFETIME = 8.0
-        self.BEHAVIORAL_MAX_LIFETIME = 8.0
+        self.BEHAVIORAL_MIN_LIFETIME = 12.0
+        self.BEHAVIORAL_MAX_LIFETIME = 12.0
 
     def cleanup_expired_texts(self, display_manager, current_time, text_positions, occupied_cells, cell_last_used,
                               is_behavioral=False):
@@ -39,7 +39,7 @@ class TextRenderer:
         expired_keys = []
         for key, data in text_positions.items():
             # השתמש בזמן החיים הספציפי לכל טקסט
-            lifetime = data.get('lifetime', self.TOTAL_LIFETIME if not is_behavioral else 8.0)
+            lifetime = data.get('lifetime', self.TOTAL_LIFETIME if not is_behavioral else 12.0)
             if current_time - data['start_time'] > lifetime:
                 expired_keys.append(key)
 

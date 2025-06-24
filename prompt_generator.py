@@ -165,6 +165,8 @@ class PromptGenerator:
     def display_prompt_with_typewriter(self, display_manager, black_screen, current_time):
         """הצגת הפרומפט עם אפקט הקלדה"""
         # יצירת הפרומפט אם עדיין לא נוצר
+        print(
+            f"📝 פרומפט: generated={display_manager.prompt_generated}, text_length={len(display_manager.prompt_text)}, opacity={display_manager.prompt_opacity:.2f}")
         print(f"🎬 DISPLAYING PROMPT: mode={display_manager.display_mode}, generated={display_manager.prompt_generated}")
         if not display_manager.prompt_generated:
             self.generate_image_prompt(display_manager)
@@ -228,11 +230,13 @@ class PromptGenerator:
         for i, line in enumerate(lines):
             y = start_y + (i * line_height)
 
-            # צבע לבן עם שקיפות מלאה
-            color = (255, 255, 255)
+            # צבע לבן עם שקיפות בהתאם למצב
+            opacity = int(255 * display_manager.prompt_opacity)
+            color = (opacity, opacity, opacity)
 
-            # ציור הטקסט מיושר לשמאל
-            draw.text((x_position, y), line, fill=color, font=font)
+            # ציור הטקסט מיושר לשמאל (רק אם יש שקיפות)
+            if opacity > 0:
+                draw.text((x_position, y), line, fill=color, font=font)
 
         # הוספת סמן הקלדה מהבהב
         if display_manager.prompt_display_index < len(display_manager.prompt_text):
@@ -250,7 +254,10 @@ class PromptGenerator:
                     except:
                         cursor_x = x_position + len(last_line) * 12 + 5
 
-                    draw.text((cursor_x, y), cursor, fill=color, font=font)
+                    opacity = int(255 * display_manager.prompt_opacity)
+                    color = (opacity, opacity, opacity)
+                    if opacity > 0:
+                        draw.text((cursor_x, y), cursor, fill=color, font=font)
 
         # הוספת כותרת - גם מיושרת לשמאל
         title = "AI IMAGE GENERATION PROMPT:"
@@ -258,7 +265,13 @@ class PromptGenerator:
 
         title_x = x_position
         title_y = start_y - 60
-        draw.text((title_x, title_y), title, fill=(100, 255, 100), font=title_font)
+
+        opacity = int(255 * display_manager.prompt_opacity)
+        if opacity > 0:
+            title_color = (int(100 * display_manager.prompt_opacity),
+                           int(255 * display_manager.prompt_opacity),
+                           int(100 * display_manager.prompt_opacity))
+            draw.text((title_x, title_y), title, fill=title_color, font=title_font)
 
         # המרה חזרה ל-OpenCV
         black_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
