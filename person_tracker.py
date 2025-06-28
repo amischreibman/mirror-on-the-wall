@@ -12,7 +12,7 @@ class PersonTracker:
 
         # מעקב אחרי מספר אנשים
         self.tracked_persons = {}  # מילון: person_id -> {bbox, last_seen}
-        self.person_timeout = 1.0
+        self.person_timeout = 0.5
         #        self.iou_threshold = 0.3  # סף לקביעה שזה אותו אדם
 
         # מונה אנשים
@@ -25,15 +25,29 @@ class PersonTracker:
         faces = self.face_cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
+            minNeighbors=3,
+            minSize=(50, 50)
         )
 
         current_time = time.time()
         detected_persons = []
         matched_person_ids = set()
 
-        print(f"\n=== PersonTracker: {len(faces)} face(s) detected ===")
+        # אם אין פנים - החזר רשימה ריקה ונקה את המעקב
+        if len(faces) == 0:
+            # נקה אנשים שלא נראו זמן רב
+            persons_to_remove = []
+            for person_id, person_data in self.tracked_persons.items():
+                time_since_seen = current_time - person_data['last_seen']
+                if time_since_seen > self.person_timeout:
+                    persons_to_remove.append(person_id)
+                    print(f"  Person {person_id}: LEFT (timeout: {time_since_seen:.1f}s)")
+
+            for person_id in persons_to_remove:
+                del self.tracked_persons[person_id]
+
+            print("  No faces detected - returning empty list")
+            return []  # החזר רשימה ריקה
 
         # עבור כל פנים שזוהו
         for face_bbox in faces:
@@ -80,6 +94,7 @@ class PersonTracker:
             del self.tracked_persons[person_id]
 
         return detected_persons
+
     def _calculate_iou(self, box1, box2):
         """חישוב Intersection over Union בין שתי תיבות"""
         x1, y1, w1, h1 = box1

@@ -11,6 +11,8 @@ def run_mirror_app():
     # יצירת אובייקטים
     camera = Camera()
     display_manager = DisplayManager()
+    import builtins
+    builtins.display_manager = display_manager
     data_saver = DataSaver()
     behavioral_data_saver = BehavioralDataSaver()
     frame_queue = queue.Queue(maxsize=10)
@@ -23,6 +25,9 @@ def run_mirror_app():
 
     # יצירת והפעלת thread לניתוח AI ברקע (כולל ניתוח התנהגותי)
     ai_analyzer = AIBackgroundAnalyzer(frame_queue, data_saver, behavioral_data_saver, interval_seconds=0.5)
+    import builtins
+    builtins.ai_analyzer = ai_analyzer
+    ai_analyzer.set_display_manager(display_manager)
     ai_analyzer.start()
 
     # פתיחת המצלמה
@@ -67,9 +72,23 @@ def run_mirror_app():
         except queue.Full:
             pass
 
-        # הצגת פריים על המסך (כולל נתוני שני המאגרים)
+        # עדכון מיידי של אנשים פעילים - בדיקה ישירה
+        detected_persons = ai_analyzer.person_tracker.detect_persons(frame)
+        active_persons = [pid for pid, _ in detected_persons]
+        display_manager.update_active_persons(active_persons)
+
+        # נקה את התור מפריימים ישנים אם אין אנשים
+        if not active_persons:
+            while not frame_queue.empty():
+                try:
+                    frame_queue.get_nowait()
+                except:
+                    break
+
         display_manager.show_frame(frame, data_saver.file_path, behavioral_data_saver.get_file_path(),
-                                   ai_analyzer.person_tracker.get_active_persons())        # בדיקת מקשים
+                                   active_persons)
+
+        # בדיקת מקשים
         key = cv2.waitKey(1)
         if key == 27:  # מקש Esc
             print("Esc key pressed. Exiting.")
@@ -101,7 +120,7 @@ def run_mirror_app():
             elif key == ord('b') or key == ord('B'):
                 print("Cleaning behavioral data!")
                 behavioral_data_saver.clean_duplicate_sessions()
-                # בדיקה אם המקש הוא 't' או 'T' - הצגת טיימר
+            # בדיקה אם המקש הוא 't' או 'T' - הצגת טיימר
             elif key == ord('t') or key == ord('T'):
                 print("Toggle timer display!")
                 display_manager.toggle_timer()
@@ -112,6 +131,17 @@ def run_mirror_app():
             elif key == ord('f') or key == ord('F'):
                 print("Toggle fullscreen!")
                 display_manager.toggle_fullscreen()
+            # בדיקה אם המקש הוא 'p' או 'P' - הדפסת מידע על אנשים
+            elif key == ord('p') or key == ord('P'):
+                print("\n=== 🔍 מידע דיבאג ===")
+                print(f"🚶 אנשים פעילים: {ai_analyzer.person_tracker.get_active_persons()}")
+                print(f"📺 אנשים פעילים בתצוגה: {display_manager.current_active_persons}")
+                print(f"👁️ אנשים במעקב: {ai_analyzer.person_tracker.tracked_persons}")
+                # בדיקת זיהוי פנים בזמן אמת
+                face_count, faces = ai_analyzer.face_detector.detect_faces(frame)
+                print(f"😊 פנים שזוהו עכשיו: {face_count}")
+                print(f"📍 מיקומי הפנים: {faces}")
+                print("==================\n")
 
     # ניקוי לפני יציאה
     print("Cleaning up...")
@@ -120,7 +150,6 @@ def run_mirror_app():
     camera.release()
     cv2.destroyAllWindows()
     print("Mirror app closed.")
-
 
 if __name__ == "__main__":
     run_mirror_app()

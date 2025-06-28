@@ -164,10 +164,8 @@ class PromptGenerator:
 
     def display_prompt_with_typewriter(self, display_manager, black_screen, current_time):
         """הצגת הפרומפט עם אפקט הקלדה"""
+
         # יצירת הפרומפט אם עדיין לא נוצר
-        print(
-            f"📝 פרומפט: generated={display_manager.prompt_generated}, text_length={len(display_manager.prompt_text)}, opacity={display_manager.prompt_opacity:.2f}")
-        print(f"🎬 DISPLAYING PROMPT: mode={display_manager.display_mode}, generated={display_manager.prompt_generated}")
         if not display_manager.prompt_generated:
             self.generate_image_prompt(display_manager)
             display_manager.prompt_last_char_time = current_time

@@ -21,7 +21,7 @@ class DisplayManager:
         self.screen_width = 0
         self.screen_height = 0
         self._setup_screen_dimensions()
-        self.show_json_overlay = False
+        self.show_json_overlay = False  # False = מצלמה, True = מסך שחור
         self.last_json_data = None
         self.frame_count = 0
         self.text_positions = {}
@@ -108,6 +108,10 @@ class DisplayManager:
     def set_behavioral_data_saver(self, behavioral_data_saver):
         """קובע הפניה לשומר הנתונים ההתנהגותיים"""
         self.behavioral_data_saver_ref = behavioral_data_saver
+
+    def update_active_persons(self, active_persons):
+        """מעדכן את רשימת האנשים הפעילים"""
+        self.current_active_persons = active_persons
 
     def calculate_people_positions(self, active_persons):
         """מחשב את המיקומים היחסיים של האנשים במסך"""
@@ -217,7 +221,7 @@ class DisplayManager:
 
     def toggle_json_overlay(self):
         self.show_json_overlay = not self.show_json_overlay
-        print(f"📊 OVERLAY: {'ON' if self.show_json_overlay else 'OFF'}")
+        print(f"📊 OVERLAY: {'BLACK SCREEN' if self.show_json_overlay else 'CAMERA'}")
 
     def _setup_screen_dimensions(self):
         monitor = get_monitors()[0]
@@ -232,11 +236,6 @@ class DisplayManager:
         """הצגת פריים עם נתוני JSON ונתונים התנהגותיים"""
 
         self.frame_count += 1
-
-        # 🔍 דיבאג - מעקב אחרי שינויי מצב
-        if self.frame_count % 30 == 0:  # כל שנייה בערך
-            time_since_start = time.time() - self.app_start_time
-            print(f"🎭 מצב נוכחי: '{self.display_mode}' בשניה {int(time_since_start)}")
 
         # שמירת רשימת האנשים הפעילים
         self.current_active_persons = active_persons if active_persons else []
@@ -264,136 +263,137 @@ class DisplayManager:
 
         x_offset = (self.screen_width - new_width) // 2
         y_offset = (self.screen_height - new_height) // 2
-
+        has_people = len(self.current_active_persons) > 0
         full_screen_frame[y_offset:y_offset + new_height,
         x_offset:x_offset + new_width] = resized_frame
 
-        # --- הוספת שכבת נתוני JSON אם הדגל פעיל ---
+        # יצירת מסך שחור למקרה שצריך
+        black_screen = np.zeros((self.screen_height, self.screen_width, 3), dtype=np.uint8)
+
+        # בחירת המסך הבסיסי (מצלמה או שחור)
         if self.show_json_overlay:
-            black_screen = np.zeros((self.screen_height, self.screen_width, 3), dtype=np.uint8)
+            base_screen = black_screen
+        else:
+            base_screen = full_screen_frame
 
-            # בדיקת טיימר אוטומטי למעבר בין מצבים
-            current_time = time.time()
+        # --- כל הפעילות קורית תמיד על המסך הנבחר ---
+        current_time = time.time()
 
-            # בדיקת טיימר אוטומטי למעבר בין מצבים אם לא במעבר כרגע
-            if not self.in_transition:
-                # חישוב זמן מתחילת היישום
-                time_since_start = current_time - self.app_start_time
+        # בדיקת טיימר אוטומטי למעבר בין מצבים אם לא במעבר כרגע
+        if not self.in_transition:
+            # חישוב זמן מתחילת היישום
+            time_since_start = current_time - self.app_start_time
 
-                # בדיקה אם יש אנשים מול המצלמה
-                has_people = len(self.current_active_persons) > 0
+            # בדיקה אם יש אנשים מול המצלמה
+            has_people = len(self.current_active_persons) > 0
 
-                # עדכון שקיפות הפרומפט
-                self.update_prompt_opacity(current_time, has_people)
+            # עדכון שקיפות הפרומפט
+            self.update_prompt_opacity(current_time, has_people)
 
-                # עדכון מיקומי אנשים אם השתנה
-                if len(self.current_active_persons) != self.last_people_count:
-                    self.people_positions = self.calculate_people_positions(self.current_active_persons)
-                    self.last_people_count = len(self.current_active_persons)
-                    # אם יש אנשים והפרומפט פעיל, צריך לעדכן אותו
-                    if has_people and self.prompt_active:
-                        self.prompt_generated = False  # יגרום ליצירת פרומפט חדש
+            # עדכון מיקומי אנשים אם השתנה
+            if len(self.current_active_persons) != self.last_people_count:
+                self.people_positions = self.calculate_people_positions(self.current_active_persons)
+                self.last_people_count = len(self.current_active_persons)
+                # אם יש אנשים והפרומפט פעיל, צריך לעדכן אותו
+                if has_people and self.prompt_active:
+                    self.prompt_generated = False  # יגרום ליצירת פרומפט חדש
 
-                # הפעלת behavioral mode אחרי 30 שניות
-                if time_since_start >= self.behavioral_start_time and "behavioral_started" not in self.__dict__:
-                    print(f"🔄 מעבר אוטומטי: הפעלת מצב התנהגותי בשניה {int(time_since_start)}")
-                    self.behavioral_started = True
-                    # לא משנים את display_mode - רק מוסיפים טקסטים לבנים
+            # הפעלת behavioral mode אחרי 30 שניות
+            if time_since_start >= self.behavioral_start_time and "behavioral_started" not in self.__dict__:
+                print(f"🔄 מעבר אוטומטי: הפעלת מצב התנהגותי בשניה {int(time_since_start)}")
+                self.behavioral_started = True
+                # לא משנים את display_mode - רק מוסיפים טקסטים לבנים
 
-                # התחל fade out של טקסטים ירוקים אחרי 25 שניות
-                if time_since_start >= self.visual_fadeout_start_time and not self.visual_fadeout_started:
-                    print(f"🌅 מתחיל fade out של טקסטים ירוקים בשניה {int(time_since_start)}")
-                    self._start_visual_fadeout(current_time)
-                    self.visual_fadeout_started = True
+            # התחל fade out של טקסטים ירוקים אחרי 25 שניות
+            if time_since_start >= self.visual_fadeout_start_time and not self.visual_fadeout_started:
+                print(f"🌅 מתחיל fade out של טקסטים ירוקים בשניה {int(time_since_start)}")
+                self._start_visual_fadeout(current_time)
+                self.visual_fadeout_started = True
 
-                # 🔍 דיבאג - בדיקת תנאי פרומפט כל 5 שניות
-                if self.frame_count % 150 == 0:  # כל 5 שניות בערך
-                    print(f"🔍 בדיקת פרומפט: עבר {int(time_since_start)} שניות מתחילת ההרצה")
-                    print(
-                        f"🔍 האם עברה דקה? {time_since_start >= self.prompt_start_time} (צריך לעבור {self.prompt_start_time} שניות)")
-                    print(f"🔍 מצב נוכחי: '{self.display_mode}'")
-                    print(f"🔍 האם המצב לא פרומפט? {self.display_mode != 'prompt'}")
-                    print(
-                        f"🔍 שני התנאים מתקיימים? {time_since_start >= self.prompt_start_time and self.display_mode != 'prompt'}")
-                    print("=" * 50)
+            # 🔍 דיבאג - בדיקת תנאי פרומפט כל 5 שניות
+            if self.frame_count % 150 == 0:  # כל 5 שניות בערך
+                print(f"🔍 בדיקת פרומפט: עבר {int(time_since_start)} שניות מתחילת ההרצה")
+                print(
+                    f"🔍 האם עברה דקה? {time_since_start >= self.prompt_start_time} (צריך לעבור {self.prompt_start_time} שניות)")
+                print(f"🔍 מצב נוכחי: '{self.display_mode}'")
+                print(f"🔍 האם המצב לא פרומפט? {self.display_mode != 'prompt'}")
+                print(
+                    f"🔍 שני התנאים מתקיימים? {time_since_start >= self.prompt_start_time and self.display_mode != 'prompt'}")
+                print("=" * 50)
 
-                # הפעלת prompt mode אחרי 60 שניות (דקה)
-                if time_since_start >= self.prompt_start_time and self.display_mode != "prompt":
-                    print(f"🎯 מעבר אוטומטי: עובר למצב פרומפט בשניה {int(time_since_start)}")
-                    self.display_mode = "prompt"
-                    self.auto_mode_timer = current_time
-                    self.prompt_generated = False
-                    self.prompt_display_index = 0
+            # הפעלת prompt mode אחרי 60 שניות (דקה)
+            if time_since_start >= self.prompt_start_time and self.display_mode != "prompt":
+                print(f"🎯 מעבר אוטומטי: עובר למצב פרומפט בשניה {int(time_since_start)}")
+                self.display_mode = "prompt"
+                self.auto_mode_timer = current_time
+                self.prompt_generated = False
+                self.prompt_display_index = 0
 
-                # למצב prompt - הצג רק אם יש אנשים
-                if self.display_mode == "prompt":
-                    if not has_people:
-                        # אין אנשים - בדוק אם הפרומפט כבר נעלם
-                        if self.prompt_opacity <= 0.0:
-                            # הפרומפט נעלם לגמרי - נשאר במצב prompt אבל לא מציג
-                            pass
-                        # אחרת - הפרומפט עדיין בתהליך fade out
-                    else:
-                        # יש אנשים - הפרומפט נשאר מוצג
-                        # וודא שהפרומפט פעיל
-                        if not self.prompt_active:
-                            self.prompt_active = True
-                            self.prompt_opacity = 1.0
-
-            # עיבוד מעבר הדרגתי
-            self.transition_manager.process_gradual_transition(self, current_time)
-
-            if self.display_mode == "visual" and not self.in_transition:
-                # הצג טקסטים ירוקים רק עד שניה 30
-                time_since_start = current_time - self.app_start_time
-                if time_since_start < 30:  # רק ב-30 השניות הראשונות
-                    data_lines = self.data_loader.get_visual_data_lines(json_data_path)
-                    self._display_visual_texts(black_screen, data_lines)
+            # למצב prompt - הצג רק אם יש אנשים
+            if self.display_mode == "prompt":
+                if not has_people:
+                    # אין אנשים - בדוק אם הפרומפט כבר נעלם
+                    if self.prompt_opacity <= 0.0:
+                        # הפרומפט נעלם לגמרי - נשאר במצב prompt אבל לא מציג
+                        pass
+                    # אחרת - הפרומפט עדיין בתהליך fade out
                 else:
-                    # אחרי 30 שניות - רק צייר את הקיימים, אל תוסיף חדשים
-                    pil_image = Image.fromarray(cv2.cvtColor(black_screen, cv2.COLOR_BGR2RGB))
-                    draw = ImageDraw.Draw(pil_image)
-                    try:
-                        font_base = ImageFont.load_default()
-                    except:
-                        font_base = None
-                    self.text_renderer.draw_texts(self, draw, font_base, current_time, self.text_positions,
-                                                  is_behavioral=False)
-                    black_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+                    # יש אנשים - הפרומפט נשאר מוצג
+                    # וודא שהפרומפט פעיל
+                    if not self.prompt_active:
+                        self.prompt_active = True
+                        self.prompt_opacity = 1.0
 
-                # הוסף גם טקסטים לבנים אם הדגל מופעל
-                if hasattr(self, 'behavioral_started') and self.behavioral_started:
-                    # צייר טקסטים לבנים על אותו מסך
-                    pil_image = Image.fromarray(cv2.cvtColor(black_screen, cv2.COLOR_BGR2RGB))
-                    draw = ImageDraw.Draw(pil_image)
-                    try:
-                        font_base = ImageFont.load_default()
-                    except:
-                        font_base = None
+        # עיבוד מעבר הדרגתי
+        self.transition_manager.process_gradual_transition(self, current_time)
 
-                    # צייר את הטקסטים הלבנים
-                    current_time = time.time()
-                    self.text_renderer.draw_texts(self, draw, font_base, current_time,
-                                                  self.behavioral_text_positions, is_behavioral=True)
+        if self.display_mode == "visual" and not self.in_transition:
+            # הצג טקסטים ירוקים רק עד שניה 30
+            time_since_start = current_time - self.app_start_time
+            if time_since_start < 30:  # רק ב-30 השניות הראשונות
+                data_lines = self.data_loader.get_visual_data_lines(json_data_path)
+                self._display_visual_texts(base_screen, data_lines)
+            else:
+                # אחרי 30 שניות - רק צייר את הקיימים, אל תוסיף חדשים
+                pil_image = Image.fromarray(cv2.cvtColor(base_screen, cv2.COLOR_BGR2RGB))
+                draw = ImageDraw.Draw(pil_image)
+                try:
+                    font_base = ImageFont.load_default()
+                except:
+                    font_base = None
+                self.text_renderer.draw_texts(self, draw, font_base, current_time, self.text_positions,
+                                              is_behavioral=False)
+                base_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-                    # החזר ל-OpenCV
-                    black_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+            # הוסף גם טקסטים לבנים אם הדגל מופעל
+            if hasattr(self, 'behavioral_started') and self.behavioral_started:
+                # צייר טקסטים לבנים על אותו מסך
+                pil_image = Image.fromarray(cv2.cvtColor(base_screen, cv2.COLOR_BGR2RGB))
+                draw = ImageDraw.Draw(pil_image)
+                try:
+                    font_base = ImageFont.load_default()
+                except:
+                    font_base = None
 
-            elif self.display_mode == "behavioral" and not self.in_transition:
-                data_lines = self.data_loader.get_behavioral_data_lines(self, behavioral_data_path)
-                self._display_behavioral_texts(black_screen, data_lines)
+                # צייר את הטקסטים הלבנים
+                current_time = time.time()
+                self.text_renderer.draw_texts(self, draw, font_base, current_time,
+                                              self.behavioral_text_positions, is_behavioral=True)
 
-            elif self.display_mode == "prompt":
-                print(f"🎬 מציג פרומפט: has_people={has_people}, opacity={self.prompt_opacity:.2f}")
+                # החזר ל-OpenCV
+                base_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-                # הצגת הפרומפט עם אפקט הקלדה
-                self.prompt_generator.display_prompt_with_typewriter(self, black_screen, current_time)
-            elif self.in_transition:
-                # במהלך מעבר - הצג את שני הסוגים עם fade out/in
-                self.transition_manager.display_transition_texts(self, black_screen, json_data_path,
-                                                                 behavioral_data_path)
+        elif self.display_mode == "behavioral" and not self.in_transition:
+            data_lines = self.data_loader.get_behavioral_data_lines(self, behavioral_data_path)
+            self._display_behavioral_texts(base_screen, data_lines)
 
-            full_screen_frame = black_screen
+        elif self.display_mode == "prompt":
+            # הצגת הפרומפט עם אפקט הקלדה
+            self.prompt_generator.display_prompt_with_typewriter(self, base_screen, current_time)
+        elif self.in_transition:
+            # במהלך מעבר - הצג את שני הסוגים עם fade out/in
+            self.transition_manager.display_transition_texts(self, base_screen, json_data_path,
+                                                             behavioral_data_path)
 
         # הצגת גריד אם מופעל
         if self.show_grid:
@@ -402,11 +402,11 @@ class DisplayManager:
 
             for i in range(1, self.grid_cols):
                 x = i * cell_width
-                cv2.line(full_screen_frame, (x, 0), (x, self.screen_height), (50, 50, 50), 1)
+                cv2.line(base_screen, (x, 0), (x, self.screen_height), (50, 50, 50), 1)
 
             for i in range(1, self.grid_rows):
                 y = i * cell_height
-                cv2.line(full_screen_frame, (0, y), (self.screen_width, y), (50, 50, 50), 1)
+                cv2.line(base_screen, (0, y), (self.screen_width, y), (50, 50, 50), 1)
 
         # הצגת טיימר
         if self.show_timer:
@@ -414,7 +414,7 @@ class DisplayManager:
             minutes = int(elapsed // 60)
             seconds = int(elapsed % 60)
             timer_text = f"{minutes:02d}:{seconds:02d}"
-            cv2.putText(full_screen_frame, timer_text, (self.screen_width - 150, 50),
+            cv2.putText(base_screen, timer_text, (self.screen_width - 150, 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 2)
 
         # הצגת מידע
@@ -461,18 +461,18 @@ class DisplayManager:
             for line in info_lines:
                 # רקע שחור מאחורי הטקסט
                 text_size = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 1)[0]
-                cv2.rectangle(full_screen_frame,
+                cv2.rectangle(base_screen,
                               (self.screen_width - 350, y_offset - 25),
                               (self.screen_width - 350 + text_size[0] + 10, y_offset + 5),
                               (0, 0, 0), -1)
 
                 # הטקסט עצמו
-                cv2.putText(full_screen_frame, line, (self.screen_width - 340, y_offset),
+                cv2.putText(base_screen, line, (self.screen_width - 340, y_offset),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
                 y_offset += 35
 
         # --- נהל מחזור טקסטים התנהגותיים תמיד ---
-        if self.show_json_overlay and hasattr(self, 'behavioral_started') and self.behavioral_started:
+        if hasattr(self, 'behavioral_started') and self.behavioral_started:
             current_time = time.time()
             # קבל נתונים זמינים
             available_data = []
@@ -482,8 +482,8 @@ class DisplayManager:
             # נהל את המחזור
             self._manage_behavioral_cycle(current_time, available_data)
 
-        cv2.imshow(self.window_name, full_screen_frame)
-
+        # הצגת המסך הסופי
+        cv2.imshow(self.window_name, base_screen)
 
     def _get_visual_data_lines(self, json_data_path):
         """קבלת נתונים חזותיים מהמאגר הראשון"""
@@ -493,9 +493,9 @@ class DisplayManager:
         """קבלת נתונים התנהגותיים מהמאגר השני"""
         return self.data_loader.get_behavioral_data_lines(self, behavioral_data_path)
 
-    def _display_visual_texts(self, black_screen, data_lines):
+    def _display_visual_texts(self, base_screen, data_lines):
         """הצגת טקסטים חזותיים (המאגר הראשון)"""
-        pil_image = Image.fromarray(cv2.cvtColor(black_screen, cv2.COLOR_BGR2RGB))
+        pil_image = Image.fromarray(cv2.cvtColor(base_screen, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(pil_image)
 
         current_time = time.time()
@@ -523,11 +523,11 @@ class DisplayManager:
         self.text_renderer.draw_texts(self, draw, font_base, current_time, self.text_positions, is_behavioral=False)
 
         # המרה חזרה ל-OpenCV
-        black_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+        base_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-    def _display_behavioral_texts(self, black_screen, data_lines):
+    def _display_behavioral_texts(self, base_screen, data_lines):
         """הצגת טקסטים התנהגותיים (המאגר השני)"""
-        pil_image = Image.fromarray(cv2.cvtColor(black_screen, cv2.COLOR_BGR2RGB))
+        pil_image = Image.fromarray(cv2.cvtColor(base_screen, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(pil_image)
 
         current_time = time.time()
@@ -551,7 +551,7 @@ class DisplayManager:
                                       is_behavioral=True)
 
         # המרה חזרה ל-OpenCV
-        black_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+        base_screen[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
     def _start_behavioral_fadeout(self, current_time):
         """מתחיל fade out לכל המשפטים הלבנים"""
@@ -615,8 +615,6 @@ class DisplayManager:
               self.behavioral_texts_pool and
               self.behavioral_pool_index < len(self.behavioral_texts_pool)):
             should_add_text = True
-            print(f"⚡ ADDING TEXT ({self.behavioral_pool_index + 1}/{len(self.behavioral_texts_pool)})")
-
         if should_add_text:
             # קח טקסט חדש
             if self.behavioral_pool_index < len(self.behavioral_texts_pool):
@@ -633,6 +631,5 @@ class DisplayManager:
                                                                   is_behavioral=True)
                     self.last_behavioral_text_add = current_time
                     self.behavioral_pool_index += 1
-                    print(f"➕ ADD TEXT #{self.behavioral_pool_index} (active: {active_count + 1})")
                 else:
                     self.behavioral_pool_index += 1

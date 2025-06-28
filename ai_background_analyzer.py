@@ -24,6 +24,11 @@ class AIBackgroundAnalyzer(threading.Thread):
         self.daemon = True
         self.frames_processed = 0
         self.frames_with_faces = 0
+        self.display_manager = None  # הוספת הפניה ל-display_manager
+
+    def set_display_manager(self, display_manager):
+        """קביעת הפניה ל-display_manager"""
+        self.display_manager = display_manager
 
     def run(self):
         print("AI background analyzer with behavioral analysis started.")
@@ -35,6 +40,11 @@ class AIBackgroundAnalyzer(threading.Thread):
 
                     # זיהוי כל האנשים בפריים
                     detected_persons = self.person_tracker.detect_persons(frame)
+
+                    # עדכן את display_manager עם רשימת האנשים הפעילים
+                    active_person_ids = [pid for pid, _ in detected_persons]
+                    if self.display_manager:
+                        self.display_manager.update_active_persons(active_person_ids)
 
                     if not detected_persons:
                         # אין אנשים בפריים
@@ -49,7 +59,6 @@ class AIBackgroundAnalyzer(threading.Thread):
                         ai_response_json_string = self.ai_agent.analyze_frame(frame)
 
                         if ai_response_json_string:
-                            print("Visual AI analysis received. Processing...")
                             self.data_saver.process_multi_person_analysis(
                                 ai_response_json_string,
                                 detected_persons
